@@ -1,0 +1,6 @@
+name: VideoFile
+
+source:
+  name: VideoFileSource
+  args:
+    path: '/mnt/ext/Videos/kazak_hit.mp4'

@@ -1,0 +1,7 @@
+name: UDPStreamSource
+
+source:
+  name: UDPStreamSource
+  args:
+    connection_type: 'webcam'
+    port: 5000

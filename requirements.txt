@@ -1,0 +1,11 @@
+pyqt6
+pyqt6-sip
+opencv-python
+requests
+pyyaml
+ultralytics
+scikit-image
+scikit-learn
+onnxruntime
+onnxruntime-gpu
+aiortc

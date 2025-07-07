@@ -1,0 +1,43 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# ОБРАЗ: wtube_backend на базе Ubuntu 24.04 + Miniconda
+# ─────────────────────────────────────────────────────────────────────────────
+
+FROM ubuntu:24.04
+
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      wget bzip2 ca-certificates curl git build-essential && \
+    rm -rf /var/lib/apt/lists/*
+
+ENV CONDA_DIR=/opt/conda
+RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh && \
+    bash /tmp/miniconda.sh -b -p $CONDA_DIR && \
+    rm /tmp/miniconda.sh && \
+    $CONDA_DIR/bin/conda clean -afy
+
+ENV PATH="$CONDA_DIR/bin:$PATH"
+
+# Рабочая директория внутри контейнера
+WORKDIR /Wtube
+
+COPY environment_backend.yml /app/environment_backend.yml
+
+RUN conda env create -f environment_backend.yml && \
+    conda clean -afy
+
+SHELL ["conda", "run", "-n", "wtube-backend", "/bin/bash", "-lc"]
+
+# Копируем весь код бэкенда в контейнер
+# Предположим, что основной backend-код лежит в директории src/
+COPY /src/wtube /logs
+
+
+# Устанавливаем рабочий каталог (если внутри кода есть относительные импорты)
+WORKDIR /Wtube/
+
+# Открываем порт (под WEB-сервер, если у вас, например, FastAPI/Flask/uvicorn на 8000)
+EXPOSE 8000
+
+# Команда запуска: например, Uvicorn для FastAPI:
+# При необходимости скорректируйте путь до вашего main.py и название переменной приложения
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

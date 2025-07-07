@@ -1,0 +1,22 @@
+name: Wtube
+
+source:
+  name: ImageFolderWatcherSource
+  args:
+    path: 'logs/test/images'
+
+preprocess:
+  name: BasePreprocessor
+  args:
+    height: 640
+    width: 640
+
+inference:
+  name: YoloInference
+  args:
+    model: HUI
+    weights_path: "wtube/inference/detectors/yolo/weights/yolov8n.pt"
+
+postprocess:
+  name: YoloPostprocessor
+  args: {}
