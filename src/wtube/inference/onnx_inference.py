@@ -1,10 +1,10 @@
 import torch
 import onnxruntime as ort
-from .base import InferenceEngine
+from .base import DetInference
 from utils.registry import register
 
 @register("inference")
-class OnnxInference(InferenceEngine):
+class OnnxInference(DetInference):
     def __init__(
         self,
         model: str,

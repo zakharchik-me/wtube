@@ -1,22 +1,13 @@
 from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot, QTimer
-from PyQt6.QtGui import QImage
-from torch.fx.experimental.unification.multipledispatch.dispatcher import source
-
-from .buffer import RollingBuffer
-from PyQt6.QtCore import QObject, pyqtSignal, pyqtSlot
 import os
-import cv2
-from .buffer import FolderBuffer
-from utils.video_saver import VideoSaver
 import time
-
-
 import socket
 import struct
 import json
 import cv2
-import numpy as np
-from PyQt6.QtCore import QObject, pyqtSlot, pyqtSignal
+from .buffer import RollingBuffer
+from utils.video_saver import VideoSaver
+from .cardsWidget.detection_marker import DetectionMarker
 
 
 class NetworkWorker(QObject):
@@ -144,6 +135,7 @@ class FrameWorker(QObject):
     frame_index_changed = pyqtSignal(int)
     frame_buffered = pyqtSignal(int)
     log_buffered = pyqtSignal(int)
+    stats_updated = pyqtSignal()
 
     def __init__(self, source, max_buffer_size=300, save_dir='logs/'):
         super().__init__()
@@ -159,12 +151,16 @@ class FrameWorker(QObject):
         self._timer = QTimer()
         self._timer.timeout.connect(self.next_frame)
         self._interval = 1000 / source.get_fps()
-        print(self._interval)
+
+        self.detection_marker = None
 
     @pyqtSlot(dict, int)
     def handle_log(self, log, frame_num):
         self.log_buffered.emit(frame_num)
         self._buffer.add_ann(log, frame_num)
+
+        self.detection_marker = DetectionMarker(log, frame_num)
+        self.stats_updated.emit()
 
         if self._paused:
             return

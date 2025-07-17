@@ -6,17 +6,16 @@ source:
     path: 'logs/test/images'
 
 preprocess:
-  name: BasePreprocessor
+  name: YoloOnnxPreprocessor
   args:
-    height: 640
-    width: 640
+    model_width: 640
+    model_height: 640
 
 inference:
-  name: YoloInference
+  name: YoloOnnxInference
   args:
-    model: HUI
-    weights_path: "wtube/inference/detectors/yolo/weights/yolov8n.pt"
+    model_weights: "wtube/inference/detectors/yolo/weights/base_y8m_apv-dataset-v4a_run1.onnx"
 
 postprocess:
-  name: YoloPostprocessor
+  name: YoloOnnxPostprocessor
   args: {}

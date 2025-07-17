@@ -6,7 +6,7 @@ from collections import deque
 from typing import Tuple, List, Dict
 import cv2
 import numpy as np
-from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QThread, pyqtSignal, pyqtSlot, Qt, QObject
 from PyQt6.QtGui import QImage
 from client.buffer.base import BufferFactory
 from utils.image_utils import convert_to_qimage
@@ -14,7 +14,7 @@ from utils.registry import register
 from utils.logging import save_log, save_img
 
 
-class FrameReader(QThread):
+class FrameReader(QObject):
     def __init__(self, path: str):
         super().__init__()
         self.image_folder = os.path.join(path, "images")
@@ -28,35 +28,31 @@ class FrameReader(QThread):
         return bgr_frame
 
     def close(self):
-        self.quit()
-        self.wait()
+        pass
 
-class ImageFlushWorker(QThread):
+
+class ImageFlushWorker(QObject):
     flush_requested = pyqtSignal()
 
     def __init__(self, saver: 'VideoSaver'):
         super().__init__()
         self.saver = saver
-        self.flush_requested.connect(self.flush)
 
     @pyqtSlot()
     def flush(self):
         self.saver.flush_images()
-        print("[ImageFlushWorker] flush_images done.")
 
 
-class LogFlushWorker(QThread):
+class LogFlushWorker(QObject):
     flush_requested = pyqtSignal()
 
     def __init__(self, saver: 'VideoSaver'):
         super().__init__()
         self.saver = saver
-        self.flush_requested.connect(self.flush)
 
     @pyqtSlot()
     def flush(self):
         self.saver.flush_logs()
-        print("[LogFlushWorker] flush_logs done.")
 
 
 @register("buffer")
@@ -64,8 +60,10 @@ class VideoSaver(BufferFactory):
     def __init__(self, path: str, max_size: int = 300, fps: int = 30, frame_size: tuple = (1280, 720)):
         self.buffer_image: deque[Tuple[int, np.ndarray]] = deque()
         self.buffer_index: Dict[int, np.ndarray] = {}
+        self.flush_queue_image = deque()
         self.buffer_log: deque[Tuple[int, np.ndarray]] = deque()
         self.log_index: Dict[int, Dict] = {}
+        self.flush_queue_log = deque()
         self.max_size = max_size
 
         self.fps = fps
@@ -90,11 +88,13 @@ class VideoSaver(BufferFactory):
         self.image_flush_worker = ImageFlushWorker(self)
         self.image_flush_worker.moveToThread(self.image_flush_thread)
         self.image_flush_thread.start()
+        self.image_flush_worker.flush_requested.connect(self.image_flush_worker.flush)
 
         self.log_flush_thread = QThread()
         self.log_flush_worker = LogFlushWorker(self)
         self.log_flush_worker.moveToThread(self.log_flush_thread)
         self.log_flush_thread.start()
+        self.log_flush_worker.flush_requested.connect(self.log_flush_worker.flush)
 
     def add_image(self, idx: int, frame: np.ndarray):
         self.add_frame(frame, idx)
@@ -104,15 +104,17 @@ class VideoSaver(BufferFactory):
 
     def add_frame(self, idx, frame):
         if len(self.buffer_image) >= self.max_size:
-            self.flush_images()
+            self.flush_images_async()
         self.buffer_image.append((idx, frame))
         self.buffer_index[idx] = frame
+        self._flush_old_images()
 
     def add_log2disk(self, idx, log):
         if len(self.buffer_log) >= self.max_size:
-            self.flush_logs()
+            self.flush_logs_async()
         self.buffer_log.append((idx, log))
         self.log_index[idx] = log
+        self._flush_old_logs()
 
     def load_log(self, number: int) -> Dict[str, List]:
         if number in self.log_index.keys():
@@ -215,6 +217,16 @@ class VideoSaver(BufferFactory):
 
     def flush_logs_async(self):
         self.log_flush_worker.flush_requested.emit()
+
+    def _flush_old_images(self):
+        while self.flush_queue_image:
+            idx, img = self.flush_queue_image.popleft()
+            self.video_saver.add_frame(idx, img)
+
+    def _flush_old_logs(self):
+        while self.flush_queue_log:
+            idx, log = self.flush_queue_log.popleft()
+            self.video_saver.add_log2disk(idx, log)
 
     def close(self):
         self.flush()

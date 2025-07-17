@@ -1,8 +1,5 @@
-from typing import List, Tuple, Optional, Union
-import yaml
+from typing import List, Tuple, Optional, Union, Set
 import numpy as np
-import cv2
-
 from PyQt6.QtCore import QRect, Qt, pyqtSlot
 from PyQt6.QtGui import QImage, QPainter, QPaintEvent, QPen, QPixmap, QColor
 from PyQt6.QtWidgets import QWidget
@@ -19,13 +16,30 @@ class ImageViewer(QWidget):
         self._pixmap: QPixmap = QPixmap()
         self._annotations: List[Tuple[QRect, float, str, int]] = []
 
+        self._raw_boxes = []
+        self._raw_scores = []
+        self._raw_labels = []
+
         self.palette = build_palette()
         self.id_to_label = load_class_config()
 
         self.confidence_threshold: float = 0.3
 
+        self._include_class = {i: True for i in range(80)}
+
     def set_confidence_threshold(self, confidence_threshold: float) -> None:
         self.confidence_threshold = confidence_threshold
+        self._reprocess_annotations()  # Reapply filtering
+        self.update()
+
+    def set_include_class(self, class_id: int, include_class: bool) -> None:
+        self._include_class[class_id] = include_class
+        self.update()
+
+    def set_include_classes(self, classes_to_include: Set[int]) -> None:
+        for class_id in self._include_class.keys():
+            self._include_class[class_id] = class_id in classes_to_include
+        self.update()
 
     def _get_color_for_class_id(self, class_id: int) -> QColor:
         color = self.palette[class_id % len(self.palette)]
@@ -54,6 +68,14 @@ class ImageViewer(QWidget):
                 continue
         return processed
 
+    def _reprocess_annotations(self) -> None:
+        """Reprocess annotations after threshold/class filter changes."""
+        processed = self._process_boxes(self._raw_boxes, self._raw_scores, self._raw_labels)
+        self._annotations = [
+            (QRect(x, y, w, h), score, label, class_id)
+            for x, y, w, h, score, label, class_id in processed
+        ]
+
     @pyqtSlot(object, object, object, object)
     def update_image(
         self,
@@ -66,11 +88,10 @@ class ImageViewer(QWidget):
             img = convert_to_qimage(img)
 
         self._pixmap = QPixmap.fromImage(img)
-        processed = self._process_boxes(boxes, scores, labels)
-        self._annotations = [
-            (QRect(x, y, w, h), score, label, class_id)
-            for x, y, w, h, score, label, class_id in processed
-        ]
+        self._raw_boxes = boxes
+        self._raw_scores = scores
+        self._raw_labels = labels
+        self._reprocess_annotations()
         self.update()
 
     def paintEvent(self, event: QPaintEvent) -> None:
@@ -84,6 +105,8 @@ class ImageViewer(QWidget):
             painter.setFont(font)
 
             for rect, score, label, class_id in self._annotations:
+                if not self._include_class.get(class_id, False):
+                    continue
                 ratio_w = self.rect().width() / self._pixmap.width()
                 ratio_h = self.rect().height() / self._pixmap.height()
 

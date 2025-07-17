@@ -1,8 +1,7 @@
 import numpy as np
 import cv2
 from skimage.util import img_as_ubyte
-
-from .base import BasePostprocessor
+from abc import ABC
 from utils.registry import register
 
 from .helpers import erode_dilate, plot_contours, join_intersecting_near_boxes
@@ -12,7 +11,7 @@ DetectionResult = namedtuple("DetectionResult", ["boxes", "scores", "labels"])
 
 
 @register("postprocess")
-class BeesPostprocessor(BasePostprocessor):
+class BeesPostprocessor(ABC):
     def __init__(self):
         super().__init__()
 

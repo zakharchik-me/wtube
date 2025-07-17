@@ -1,11 +1,11 @@
 from abc import ABC, abstractmethod
-import torch
+from wtube.utils.instance import PreprocDetData, DetResults
+from utils.registry import register
 
-class InferenceEngine(ABC):
-    @abstractmethod
-    def __call__(self, x: torch.Tensor) -> torch.Tensor:
-        pass
+
+@register("inference")
+class DetInference(ABC):
 
     @abstractmethod
-    def load_weights(self, path: str):
-        pass
+    def __call__(self, preprocessed_data: "PreprocDetData") -> "DetResults":
+        raise NotImplementedError

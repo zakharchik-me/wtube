@@ -1,6 +1,11 @@
 from abc import ABC, abstractmethod
+from wtube.utils.instance import DetResults
+from utils.registry import register
 
-class BasePostprocessor(ABC):
+
+@register("postprocess")
+class DetPostprocessor(ABC):
+
     @abstractmethod
-    def __call__(self, *args, **kwargs):
-        pass
+    def __call__(self, raw_det_data: DetResults) -> "DetResults":
+        raise NotImplementedError

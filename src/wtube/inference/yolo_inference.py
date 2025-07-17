@@ -1,10 +1,11 @@
 import torch
 from ultralytics import YOLO
-from .base import InferenceEngine
+from .base import DetInference
 from utils.registry import register
 
+
 @register("inference")
-class YoloInference(InferenceEngine):
+class YoloInference(DetInference):
     def __init__(
         self,
         model: str,

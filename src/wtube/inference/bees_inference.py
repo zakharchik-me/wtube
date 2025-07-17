@@ -1,9 +1,9 @@
-from .base import InferenceEngine
+from abc import ABC
 from utils.registry import register, REGISTRY
 import torch
 
 @register("inference")
-class BeesInference(InferenceEngine):
+class BeesInference(ABC):
     def __init__(self, model, input_channels=5, out_channels=1, weights_path=None):
         if isinstance(model, str):
             model_cls = REGISTRY["model"][model]

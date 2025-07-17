@@ -96,9 +96,10 @@ class DetectionReceiver(DetectionWorker):
             image_id = log_frame(frame, frame_num, frame_ts)
 
             try:
-                batch = self._pre(frame)
-                result = self._infer(batch)
-                batch, bls = self._post(batch, result, frame)
+                preprocessed_data = self._pre(frame)
+                raw_det_data = self._infer(preprocessed_data)
+                det_results = self._post(raw_det_data)
+
             except Exception as e:
                 print(f"[Receiver] Error during processing: {e}")
                 if self.result_queue is not None and self.queue_mutex:
@@ -109,7 +110,7 @@ class DetectionReceiver(DetectionWorker):
                         self.queue_mutex.unlock()
                 continue
 
-            log_annotation(image_id, bls, frame_ts)
+            log_annotation(image_id, det_results.bls, frame_ts)
             logs = get_log()
             logs_copy = {
                 "images": list(logs["images"]),

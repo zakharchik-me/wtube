@@ -1,15 +1,14 @@
 import torch
+from abc import ABC
 import numpy as np
 from torchvision.ops import nms
 from collections import namedtuple
-
-from .base import BasePostprocessor
 from utils.registry import register
 
 DetectionResult = namedtuple("DetectionResult", ["boxes", "scores", "labels"])
 
 @register("postprocess")
-class OnnxPostprocessor(BasePostprocessor):
+class OnnxPostprocessor(ABC):
     def __init__(
         self,
         conf_thres: float = 0.25,

@@ -1,11 +1,11 @@
-from .base import BasePreprocessor
+from abc import ABC
 from utils.registry import register
 import torch
 from skimage.color import rgb2gray
 import cv2
 
 @register("preprocess")
-class BeesPreprocessor(BasePreprocessor):
+class BeesPreprocessor(ABC):
     def __init__(self, height, width):
         self.height = height
         self.width = width

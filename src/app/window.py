@@ -1,7 +1,8 @@
+import os
 from pathlib import Path
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QGroupBox, QPushButton,
-    QComboBox, QFileDialog, QGridLayout, QSizePolicy, QLabel, QSlider, QHBoxLayout as QHBoxLayoutWidgets
+    QComboBox, QFileDialog, QGridLayout, QSizePolicy, QLabel, QSlider, QHBoxLayout as QHBoxLayoutWidgets, QListWidget
 )
 from PyQt6.QtCore import Qt, pyqtSlot
 
@@ -10,8 +11,7 @@ from app.server import DetectionLauncher
 from app.client import ClientLauncher
 from client.slider.buffered_slider import BufferedSlider
 from utils.export import Export
-
-import os
+from client.cardsWidget.class_card import ClassCardsWidget
 
 
 class MainWindow(QMainWindow):
@@ -34,6 +34,8 @@ class MainWindow(QMainWindow):
         self.chosen_video_file = None
 
         self.pause_on_slider = False
+
+        self.jump_triggered_pause = False
 
         self._setup_ui()
 
@@ -82,6 +84,7 @@ class MainWindow(QMainWindow):
         self.seek_slider.setSingleStep(1)
         self.seek_slider.sliderReleased.connect(self._on_slider_released)
         self.seek_slider.pauseRequested.connect(self._pause_on_slider_press)
+        self.seek_slider.highlightClicked.connect(self._on_jump_to_frame)
         layout.addWidget(self.seek_slider)
 
         group.setLayout(layout)
@@ -95,10 +98,24 @@ class MainWindow(QMainWindow):
 
         self.conf_label = QLabel()
         self.conf_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.cards_manager = ClassCardsWidget()
         self.conf_slider = self._create_slider()
+        self.cards_manager.highlight.connect(self._update_slider_highlights)
         layout.addWidget(self.conf_label)
         layout.addWidget(self.conf_slider)
-        layout.addStretch()
+
+        conf_jump_layout = QHBoxLayout()
+        for val in [0, 30, 50, 90]:
+            btn = QPushButton(str(val))
+            btn.setFixedSize(30, 15)
+            btn.clicked.connect(lambda checked, v=val: self.conf_slider.setValue(v))
+            conf_jump_layout.addWidget(btn)
+        layout.addLayout(conf_jump_layout)
+
+        self.cards_manager.toggleIncludeCard.connect(self._toggle_include)
+        layout.addWidget(self.cards_manager, stretch=1)
+        self.cards_manager.timestampClicked.connect(self._on_jump_to_frame)
+        self.cards_manager.pauseRequest.connect(self._pause_on_ts)
 
         self.config_combo = self._create_config_combo()
         layout.addWidget(self.config_combo)
@@ -136,8 +153,9 @@ class MainWindow(QMainWindow):
     def _create_slider(self) -> QSlider:
         slider = QSlider(Qt.Orientation.Horizontal)
         slider.setRange(0, 100)
-        slider.setSingleStep(1)
-        slider.setTickInterval(1)
+        slider.setSingleStep(5)
+        slider.setPageStep(5)
+        slider.setTickInterval(5)
         slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         slider.setValue(30)
         slider.valueChanged.connect(self._on_confidence_changed)
@@ -293,10 +311,14 @@ class MainWindow(QMainWindow):
 
         self.buffer_launcher.frame_worker.seek(new_index)
 
+    def _toggle_include(self, class_id: int, include: bool) -> None:
+        self.viewer.set_include_class(class_id, include)
+
     def _on_confidence_changed(self, value: int) -> None:
-        self.conf_label.setText(f"Confidence: {value}%")
-        threshold = value / 100.0
+        threshold = (value - value%5) / 100
+        self.conf_label.setText(f"Confidence: {int(threshold * 100)}%")
         self.viewer.set_confidence_threshold(threshold)
+        self.cards_manager.update_all_cards_by_confidence(value)
 
     def _update_slider_position(self, frame_index: int) -> None:
         self.seek_slider.blockSignals(True)
@@ -340,6 +362,10 @@ class MainWindow(QMainWindow):
         if not self.paused:
             self._toggle_pause_resume()
 
+    def _pause_on_ts(self) -> None:
+        if not self.paused:
+            self._toggle_pause_resume()
+
     def _update_seek_button_enabled(self) -> None:
         if self.seek_slider.value() < self.current_frame_buffered:
             self.seek_to_buffer_btn.setEnabled(True)
@@ -356,13 +382,12 @@ class MainWindow(QMainWindow):
         if not self.paused:
             self.buffer_launcher.play()
 
-        self._update_seek_button_enabled()
+        self._update_export_buttons_enabled()
 
     def _update_export_buttons_enabled(self) -> None:
-        at_end = self.seek_slider.value() >= self.seek_slider.maximum()
-        can_export = self.paused or at_end
-        self.export_btn.setEnabled(can_export)
-        self.export_all_btn.setEnabled(can_export)
+        enabled = self.paused or self.seek_slider.value() >= self.current_frame_buffered
+        self.export_btn.setEnabled(enabled)
+        self.export_all_btn.setEnabled(enabled)
 
     @pyqtSlot()
     def export_single(self) -> None:
@@ -419,3 +444,15 @@ class MainWindow(QMainWindow):
                 print(f"Exported: {save_path}")
             except Exception as e:
                 print(f"Failed to export {video_name}: {e}")
+
+    def _on_jump_to_frame(self, frame: int) -> None:
+        if frame <= self.current_frame_buffered:
+            self.seek_slider.setValue(frame)
+            self.buffer_launcher.frame_worker.seek(frame)
+            self.paused = False
+            self._toggle_pause_resume()
+
+    def _update_slider_highlights(self):
+        highlights = self.cards_manager.get_highlight_timestamps()
+        self.seek_slider.set_highlights(highlights)
+

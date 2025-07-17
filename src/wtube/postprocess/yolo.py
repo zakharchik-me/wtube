@@ -1,15 +1,12 @@
 from typing import List
-
-import cv2
-
-from .base import BasePostprocessor
+from .base import DetPostprocessor
 from utils.registry import register
 
 from collections import namedtuple
 DetectionResult = namedtuple("DetectionResult", ["boxes", "scores", "labels"])
 
 @register("postprocess")
-class YoloPostprocessor(BasePostprocessor):
+class YoloPostprocessor(DetPostprocessor):
     def __init__(
         self,
         conf_thres: float = 0.25,

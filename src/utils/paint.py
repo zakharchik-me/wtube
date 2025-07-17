@@ -25,3 +25,7 @@ def build_palette() -> List[Tuple[int, int, int]]:
     )
     return [hex2rgb(f"#{c}") for c in hexs]
 
+def rgb2hex(rgb: Tuple[int, int, int]) -> str:
+    """Convert RGB tuple to hex string (#RRGGBB)."""
+    return "#{:02X}{:02X}{:02X}".format(*rgb)
+
